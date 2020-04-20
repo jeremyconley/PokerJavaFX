@@ -39,9 +39,11 @@ import javafx.scene.text.Text;
 import javafx.scene.transform.Rotate;
 
 public class Main extends Application {
-	PokerTablePane pokerTable;
-	ControlsPane controlPane;
-	PayoutViewPane payoutViewPane;
+	
+	PayoutViewPane payoutViewPane; //Top View
+	PokerTablePane pokerTable; //Mid View
+	ControlsPane controlPane; //Bottom View
+	
 	//Array to check which cards are selected for discard. (1 if selected, 0 if not)
 	private int[] cardsToDiscard = {0,0,0,0,0};
 	
