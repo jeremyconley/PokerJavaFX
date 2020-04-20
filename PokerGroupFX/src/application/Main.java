@@ -1,3 +1,11 @@
+/*
+Name:		Jeremy Conley
+Course:		COSC 1174
+Instructor: Gregory Yera
+Assignment:	Poker Group Project
+
+*/
+
 package application;
 import java.util.ArrayList;
 import java.util.Collections;
