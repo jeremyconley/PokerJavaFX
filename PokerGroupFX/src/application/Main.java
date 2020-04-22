@@ -59,9 +59,6 @@ public class Main extends Application {
 	private ArrayList<Card> cardList = new ArrayList<Card>();
 	private Stack<Card> deck = new Stack<Card>();
 	
-	//List of Player's Current Hand
-	private ArrayList<Card> currentHand = new ArrayList<Card>();
-	
 	//Game Controller
 	GameController gameController;
 	
@@ -81,8 +78,8 @@ public class Main extends Application {
 			//Setup Scene
 			setupSceneViews(root);
 			
-			//Add the Cards
-			fillCardList();
+			//Add the Cards with initially 1 Deck
+			fillCardList(1);
 			
 			//Show the scene
 			primaryStage.setScene(scene);
@@ -108,44 +105,53 @@ public class Main extends Application {
 	}
 	
 	//Loop over images names, create card items with value and suit
-	public  void fillCardList() {
+	public  void fillCardList(int numOfDecks) {
 		cardList.clear();
-		for (int i = 1; i <= 13; i++) {
-			//Add Spades
-			Card card = new Card(i, 0, "images/" + i + ".png");
-			cardList.add(card);
-		}
-		for (int i = 14; i <= 26; i++) {
-			//Add Hearts
-			Card card = new Card(i - 13, 1, "images/" + i + ".png");
-			cardList.add(card);
-		}
-		for (int i = 27; i <= 39; i++) {
-			//Add Diamonds
-			Card card = new Card(i - 26, 2, "images/" + i + ".png");
-			cardList.add(card);
-		}
-		for (int i = 40; i <= 52; i++) {
-			//Add Diamonds
-			Card card = new Card(i - 39, 3, "images/" + i + ".png");
-			cardList.add(card);
+		for (int n = 1; n <= numOfDecks; n++) {
+			for (int i = 1; i <= 13; i++) {
+				//Add Spades
+				Card card = new Card(i, 0, "images/" + i + ".png");
+				cardList.add(card);
+			}
+			for (int i = 14; i <= 26; i++) {
+				//Add Hearts
+				Card card = new Card(i - 13, 1, "images/" + i + ".png");
+				cardList.add(card);
+			}
+			for (int i = 27; i <= 39; i++) {
+				//Add Diamonds
+				Card card = new Card(i - 26, 2, "images/" + i + ".png");
+				cardList.add(card);
+			}
+			for (int i = 40; i <= 52; i++) {
+				//Add Diamonds
+				Card card = new Card(i - 39, 3, "images/" + i + ".png");
+				cardList.add(card);
+			}
+			
+			//Add Jokers
+			Card j1 = new Card(0, 4, "images/53.png");
+			Card j2 = new Card(0, 4, "images/54.png");
+			cardList.add(j1);
+			cardList.add(j2);
 		}
 	}
 	
 	//Deal Cards Method
 	public void dealCards() {
-		if (gameController.handState == HandState.START) {
-			//Update hand state
-			gameController.updateState();
+		if (gameController.handState == HandState.START) { //Check State
+			gameController.updateState(); //Update hand state
+			controlPane.disableSwitchDecks(); //Disable Switching Decks Until next hand
 			deck.clear(); //Clear the deck
-			currentHand.clear(); //Clear Current hand
+			gameController.currentHand.clear(); //Clear Current hand
+			fillCardList(gameController.numberOfDecks); //Refill Card list with current deck count
 			Collections.shuffle(cardList); //Shuffle the cards
 			deck.addAll(cardList); //Add shuffled cards to the Deck
 			for (int i = 0; i <= 4; i++) {
 				//Deal & set the first five off the top of the deck
 				Card cardToDeal = deck.pop();
 				pokerTable.cardViews.get(i).setImage(new Image(cardToDeal.imageName)); //Set Card Images
-				currentHand.add(i, cardToDeal); //Upload your current hand
+				gameController.currentHand.add(i, cardToDeal); //Upload your current hand
 			}
 			pokerTable.dealAnimation();//Call animation for dealing cards
 			
@@ -161,7 +167,6 @@ public class Main extends Application {
 		if (gameController.handState == HandState.DRAW) {
 			//Update hand state
 			gameController.updateState();
-			
 			controlPane.disableBetting(); //Deactivate Betting
 			
 			//Check if no cards are selected (To skip animations & evaluate)
@@ -180,7 +185,7 @@ public class Main extends Application {
 			for (int i = 0; i <= 4; i++) { 
 				if (cardsToDiscard[i] == 1) { //Loop and see which cards are selected
 					Card newCard = deck.pop(); //Get next card on the deck
-					currentHand.set(i, newCard);//Upload your current hand
+					gameController.currentHand.set(i, newCard);//Upload your current hand
 					//Call Animation
 					pokerTable.drawAnimation(pokerTable.cardViews.get(i), newCard.imageName);
 				}
@@ -195,40 +200,183 @@ public class Main extends Application {
 			//Evaluate Stuff...
 			
 			//Sort and split hand
-			currentHand.sort(new CardComparator());	
+			gameController.currentHand.sort(new CardComparator());	
 			int u,v,x,y,z; //integer values of cards
-			u = currentHand.get(0).value;
-			v = currentHand.get(1).value;
-			x = currentHand.get(2).value;
-			y = currentHand.get(3).value;
-			z = currentHand.get(4).value;
+			u = gameController.currentHand.get(0).value;
+			v = gameController.currentHand.get(1).value;
+			x = gameController.currentHand.get(2).value;
+			y = gameController.currentHand.get(3).value;
+			z = gameController.currentHand.get(4).value;
 			
 			//Check for flush
-			boolean flush = true;
-			int suit = currentHand.get(0).suit;
-			for (int i = 1; i < currentHand.size(); i++) {
-				if (currentHand.get(i).suit != suit) {
-					flush = false;
-				}
-			}
-			//Check for straight
-			boolean straight = true;
-			for (int i = 1; i < currentHand.size(); i++) {
-				if (i != currentHand.get(i - 1).value + 1) {
-					straight = false;
-				}
-				//Special Case for Ace at the end
-				if ((u == 1) && (v == 10) && (v == 11) && (v == 12) && (z == 13)) {
-					straight = true;
+			boolean flush = true; //Initially True
+			int suit = gameController.currentHand.get(0).suit; //Suit of first card to compare
+			for (int i = 1; i < gameController.currentHand.size(); i++) {
+				if (suit == 4) { //If first card is a joker, switch suit variable to next card
+					suit = gameController.currentHand.get(i).suit;
+				} else {
+					if (gameController.currentHand.get(i).suit != suit) {
+						if (gameController.currentHand.get(i).suit != 4) { //Not a Joker
+							flush = false;
+						}
+					}
 				}
 			}
 			
-			//Straight Flush && Royal Flush
+			//Check for straight
+			boolean straight = false;
+			if ((u + 1 == v) && (v + 1 == x) && (x + 1 == y) && (y + 1 == z)) {
+				straight = true;
+			} else { //Not a normal straight, check for Jokers
+				if (u == 0) {
+					//1 Joker
+					if ((v + 1 == x) && (x + 1 == y) && (y + 1 == z)) {
+						//Partial Straight, add Joker to beginning or end
+						straight = true;
+					} else {
+						//Straight with gap, fill in w/ Joker
+						if ((v + 1 == x) && (x + 2 == y) && (y + 1 == z)) { //Mid Gap
+							straight = true;
+						} else if ((v + 2 == x) && ((x + 1 == y) && (y + 1 == z))) { //Gap between 2nd & 3rd
+							straight = true;
+						} else if ((v + 1 == x) && (x + 1 == y) && (y + 2 == z)) { //Gap between 4th and 5th
+							straight = true;
+						}
+					}
+					
+					if (v == 0) {
+						//2 Jokers
+						if ((x + 1 == y) && (y + 1 == z )) {
+							//Partial Straight, add Jokers to beginning or end
+							straight = true;
+						} else if (((x + 1 == y) && (y + 2 == z)) || ((x + 2 == y) && (y + 1 == z))) {
+							 //Single Gap between 3rd & 4th OR 4th & 5th
+							straight = true;
+						} else if ((x + 2 == y) && (y + 2 == z)) {
+							//Two gaps between 3rd & 4th AND 4th & 5th
+							straight = true;
+						} else if (((x + 3 == y) && (y + 1 == z)) || ((x + 1 == y) && (y + 3 == z))) {
+							//One big gap (+3) between 3rd & 4th OR 4th & 5th
+							straight = true;
+						}
+					}
+				}
+			}
+			 
+			//Special Case for Ace at the end (High Straight) & Check Royal Flush
 			boolean royalFlush = false;
-			if (straight && flush) {
-				if ((u == 1) && (z == 13)) {
+			if ((u == 1) && (v == 10) && (x == 11) && (y == 12) && (z == 13)) {
+				straight = true;
+				if (flush) {
 					royalFlush = true;
 				}
+			} else {
+				//Special Case W/ Joker
+				if (u == 0) {
+					//1 Joker
+					if ((v == 10) && (x == 11) && (y == 12) && (z == 13)) {
+						//Use Joker as Ace
+						straight = true;
+						if (flush) {
+							royalFlush = true;
+						}
+					} else { //Use Joker for gap
+						if (v == 1) { //Ending Ace
+							if ((x == 10) && (y == 11)) { //Missing Either Q or K
+								if (z == 12 || z == 13) {
+									//Use Joker as King or Queen
+									straight = true;
+									if (flush) {
+										royalFlush = true;
+									}
+								}
+							} else if ((y == 12) && (z == 13)) { //Missing Either 10 or Jack
+								if (x == 10 || x == 11) {
+									//Use Joker as 10 or Jack
+									straight = true;
+									if (flush) {
+										royalFlush = true;
+									}
+								}
+							}
+						}
+					}
+					
+					if (v == 0) {
+						//2 Jokers
+						if ((x == 1) && (y == 10)) { //Have Ace & 10
+							if (z == 11 || z == 12 || z == 13) {
+								straight = true;
+								if (flush) {
+									royalFlush = true;
+								}
+							}
+						} else if ((x == 1) && (y == 11)) { //Have Ace & Jack
+							if (z == 12 || z == 13) {
+								straight = true;
+								if (flush) {
+									royalFlush = true;
+								}
+							}
+						} else if ((x == 1) && (y == 12) && (z == 13)) { //A,Q,K
+							straight = true;
+							if (flush) {
+								royalFlush = true;
+							}
+						} else if ((x == 10)) { //Leading 10
+							if (y == 11) {
+								if (z == 12 || z == 13) {
+									straight = true;
+									if (flush) {
+										royalFlush = true;
+									}
+								}
+							} else if (y == 12 && z == 13) {
+								straight = true;
+								if (flush) {
+									royalFlush = true;
+								}
+							}
+						} else if (x == 11 && y == 12 && z == 13) { //Leading Jack
+							straight = true;
+							if (flush) {
+								royalFlush = true;
+							}
+						}
+						if (x == 0) {
+							//3 Jokers
+							if (y != z) {
+								if (y >= 10 && z >= 10) { //2 cards >= 10
+									straight = true;
+									if (flush) {
+										royalFlush = true;
+									}
+								} else if (y == 1 || z == 1) { //If one is Ace
+									if (y >= 10 || z >= 10) { //Other is 10 or a Face card
+										straight = true;
+										if (flush) {
+											royalFlush = true;
+										}
+									}
+								}
+							}
+							if (y == 0) { 
+								//4 Jokers
+								System.out.println("4 Jokers");
+								if (z == 1 || z == 0 || z >= 10) {
+									royalFlush = true;
+								}
+							}
+						}
+					}
+				}
+			}
+			
+			
+			//Straight Flush
+			boolean straightFlush = false;
+			if (straight && flush) {
+				straightFlush = true;
 			}
 			
 			//Four of Kind
@@ -236,20 +384,62 @@ public class Main extends Application {
 			if ((u == v && v == x && x == y) || (v == x && x == y && y == z)) {
 				fourKind = true;
 			}
-			//4 Kind, Full House, 3 Kind, Two Pair, Pair
+			//Four of kind with Joker
+			if (u == 0) {
+				//1 Joker
+				if (((v == x) && (x == y)) || ((x == y) && (y == z))) {
+					fourKind = true;
+				}
+				if (v == 0) {
+					//2 Jokers
+					if ((x == y) || (y == z)) {
+						fourKind = true;
+					}
+				} if (x == 0) {
+					//3 Jokers
+					fourKind = true;
+				}
+			}
+			
+			//Full House, 3 Kind, Two Pair, Pair
 			boolean fullHouse = false;
 			boolean threeKind = false;
 			boolean twoPair = false;
 			boolean pair = false;
-			if ((u == v && v == x && x == y) || (v == x && x == y && y == z)) {//4 Kind
-				fourKind = true; 
-			} else if (((u == v && v == x) && (y == z)) || ((u == v) && (x == y && y == z))) {//Full House
+			if (((u == v && v == x) && (y == z)) || ((u == v) && (x == y && y == z))) {//Full House
 				fullHouse = true;
-			} else if ((u == v && v == x) || (v == x && x == y)) {// 3 Kind
+			} else {
+				//Full House W/ Jokers
+				if (u == 0) {
+					//1 Joker
+					if ((v == x) && (y == z)) {
+						fullHouse = true;
+					}
+					//If we have > 1 Joker and satisfies fullHouse conditions, will be 4 of a kind
+				}
+			}
+			
+			if ((u == v && v == x) || (v == x && x == y) || (x == y && y == z)) {// 3 Kind
 				threeKind = true;
-			} else if ((u == v) && (x == y) || (u == v) && (y == z) || (v == x) && (y == z)) {//Two Pair
+			} else {
+				//Three Kind W/ Jokers
+				if (u == 0) {
+					//1 Joker
+					if ((v == x) || (x == y) || (y == z)) {
+						threeKind = true;
+					}
+					if (v == 0) {
+						//2 Jokers
+						threeKind = true;
+					}
+				}
+			}
+			
+			if ((u == v) && (x == y) || (u == v) && (y == z) || (v == x) && (y == z)) {//Two Pair
 				twoPair = true;
-			} else if ((u == v) || (v == x) || (x == y) || (y == z)) {//Pair
+			} //Satisfying 2 Pair W/ a Joker will be 3 of a kind
+			
+			if ((u == v) || (v == x) || (x == y) || (y == z)) {//Pair
 				//Check for Jacks or Better
 				if ((u == v) && ((u + v >= 22) || (u + v == 2))) {
 					//Check if pair, if both are at least a Jack or Ace's
@@ -264,6 +454,15 @@ public class Main extends Application {
 					//Check if pair, if both are at least a Jack or Ace's
 					pair = true;
 				}
+			} else {
+				//Check for pair w/ Joker
+				if (u == 0) {
+					if (v > 10 || x > 10 || y > 10 || z > 10) {
+						pair = true; //Pair of Jack's or better w/ Joker
+					} else if (v == 1) {
+						pair = true; //Pair of Ace's W/ Joker
+					}
+				}
 			}
 						
 			Hand handPlayed = new Hand();
@@ -271,7 +470,7 @@ public class Main extends Application {
 			//Check for win
 			if (royalFlush) {
 				handPlayed = payoutViewPane.royalFlush; //Set hand played
-			} else if (straight && flush) {
+			} else if (straightFlush) {
 				handPlayed = payoutViewPane.straightFlush; //Set hand played
 			} else if (fourKind) {
 				handPlayed = payoutViewPane.fourKind; //Set hand played
@@ -319,6 +518,7 @@ public class Main extends Application {
 			
 			pokerTable.resultView.fadeInOut();
 			gameController.updateState(); //Game state set back to START
+			controlPane.enableSwitchDecks(); //Enable switching decks
 		}
 	}
 	
@@ -328,12 +528,18 @@ public class Main extends Application {
 
 	//Container For Game Controls (Bottom View)
 	class ControlsPane extends VBox {
+		//Deal/Draw Buttons
 		Button dealButton;
 		Button drawButton;
+		//Bet Buttons/Text Field
 		TextField betInput;
 		RadioButton betMin;
 		RadioButton betMax;
 		Text chipCountLabel;
+		//Num of Decks Buttons
+		RadioButton oneDeck;
+		RadioButton twoDeck;
+		RadioButton threeDeck;
 		
 		public ControlsPane() {
 			//Add Deal Button
@@ -442,19 +648,53 @@ public class Main extends Application {
 			betContainer.setPadding(new Insets(15, 0, 15, 10));
 			betContainer.setHgap(15);
 			
-			//Add container for chip count label, and radio buttons for number of decks used
+			//Chip Count Label 
 			chipCountLabel = new Text("Chips: 250");
 			chipCountLabel.setFill(Color.YELLOW);
 			chipCountLabel.setTranslateX(10);
+			
+			//Container with label & radio buttons for number of decks used
 			FlowPane numOfDecksContainer = new FlowPane();
+			//Label
 			Text deckCountLabel = new Text("Number of Decks: ");
 			deckCountLabel.setFill(Color.YELLOW);
-			RadioButton oneDeck = new RadioButton("1");
+			//One Deck
+			oneDeck = new RadioButton("1");
 			oneDeck.setTextFill(Color.YELLOW);
-			RadioButton twoDeck = new RadioButton("2");
+			oneDeck.setSelected(true); //Initially set to one Deck
+			oneDeck.setOnAction(e -> {
+				//Toggle Buttons
+				oneDeck.setSelected(true);
+				twoDeck.setSelected(false);
+				threeDeck.setSelected(false);
+				
+				//Call Game Controller Method (index = 0)
+				gameController.changeNumOfDecks(0);
+			});
+			//Two Decks
+			twoDeck = new RadioButton("2");
 			twoDeck.setTextFill(Color.YELLOW);
-			RadioButton threeDeck = new RadioButton("3");
+			twoDeck.setOnAction(e -> {
+				//Toggle Buttons
+				oneDeck.setSelected(false);
+				twoDeck.setSelected(true);
+				threeDeck.setSelected(false);
+				
+				//Call Game Controller Method (index = 1)
+				gameController.changeNumOfDecks(1);
+			});
+			threeDeck = new RadioButton("3");
 			threeDeck.setTextFill(Color.YELLOW);
+			threeDeck.setOnAction(e -> {
+				//Toggle Buttons
+				oneDeck.setSelected(false);
+				twoDeck.setSelected(false);
+				threeDeck.setSelected(true);
+				
+				//Call Game Controller Method (index = 2)
+				gameController.changeNumOfDecks(2);
+			});
+			//Style Container, Add Buttons & Label
 			numOfDecksContainer.setPadding(new Insets(15, 0, 0, 10));
 			numOfDecksContainer.setHgap(15);
 			numOfDecksContainer.getChildren().addAll(deckCountLabel, oneDeck, twoDeck, threeDeck);
@@ -475,12 +715,28 @@ public class Main extends Application {
 			betMax.setDisable(false);
 			betInput.setDisable(false);
 		}
+		
 		public void disableBetting() {
-			//Disable bet buttons and text field
+			//Disable bet buttons and text field		
 			betMin.setDisable(true);
 			betMax.setDisable(true);
 			betInput.setDisable(true);
 			
+			//Unselect Bet Buttons
+			betMin.setSelected(false);
+			betMax.setSelected(false);
+		}
+		//Enable Switching Decks
+		public void enableSwitchDecks() {
+			oneDeck.setDisable(false);
+			twoDeck.setDisable(false);
+			threeDeck.setDisable(false);
+		}
+		//Disable Switching Decks
+		public void disableSwitchDecks() {
+			oneDeck.setDisable(true);
+			twoDeck.setDisable(true);
+			threeDeck.setDisable(true);
 		}
 	}
 	
@@ -568,7 +824,7 @@ public class Main extends Application {
 		public void selectForDiscard(int index) {
 			if (gameController.handState == HandState.DRAW) {
 				//Current card
-				Card currentCard = currentHand.get(index);
+				Card currentCard = gameController.currentHand.get(index);
 				//Check if card has already been selected
 				boolean isSelected = false;
 				if (cardsToDiscard[index] == 0) {
@@ -827,13 +1083,20 @@ public class Main extends Application {
 }
 
 class GameController {
+	
+	int chipCount = 250; //Initial Chip Count
+	int betAmount = 1;  //Initial Bet
+	
 	//Game states: START is before the deal, DRAW is after the deal, END is after the draw
 	enum HandState { 
 		START, DRAW, END
 	}
-	int chipCount = 250; //Initial Chip Count
-	int betAmount = 1;  //Initial Bet
-	HandState handState;
+	HandState handState; //Game State
+	
+	//List of Player's Current Hand
+	ArrayList<Card> currentHand = new ArrayList<Card>();
+	
+	int numberOfDecks = 1; //Number of decks being used
 	
 	public GameController () {
 		handState = HandState.START; //Initial State of hand
@@ -858,6 +1121,16 @@ class GameController {
 		default: 
 			handState = HandState.START;
 			break;
+		}
+	}
+	
+	public void changeNumOfDecks(int index) {//Radio Button index (0-2)
+		if (index == 0) { 	//1 Deck
+			numberOfDecks = 1;
+		} else if (index == 1) { //2 Decks
+			numberOfDecks = 2;	
+		} else { 	//3 Decks	
+			numberOfDecks = 3;
 		}
 	}
 	
