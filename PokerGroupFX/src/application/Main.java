@@ -7,6 +7,7 @@ Assignment:	Poker Group Project
 */
 
 package application;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -27,6 +28,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.TextField;
+import javafx.scene.effect.DropShadow;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.Background;
@@ -51,9 +53,20 @@ public class Main extends Application {
 	PayoutViewPane payoutViewPane; //Top View
 	PokerTablePane pokerTable; //Mid View
 	ControlsPane controlPane; //Bottom View
+	TopMostPane avatarPicker;
 	
 	//Array to check which cards are selected for discard. (1 if selected, 0 if not)
 	private int[] cardsToDiscard = {0,0,0,0,0};
+	
+	//Array for avatar url image links
+	private String[] imageURL = {
+			"images/avatar1.jpg",
+            "images/avatar2.jpg",
+            "images/avatar3.jpg",
+            "images/avatar4.jpg",
+            "images/avatar5.jpg",
+            "images/avatar6.jpg",
+	};
 	
 	//Lists of total Cards and Current Deck
 	private ArrayList<Card> cardList = new ArrayList<Card>();
@@ -67,7 +80,7 @@ public class Main extends Application {
 		try {
 			//Main Scene Setup w/ Black BG
 			VBox root = new VBox();
-			Scene scene = new Scene(root,600,600);
+			Scene scene = new Scene(root,600,750);
 			BackgroundFill background_fill = new BackgroundFill(Color.BLACK, null, null); 
 			Background background = new Background(background_fill);
 			root.setBackground(background);
@@ -90,7 +103,12 @@ public class Main extends Application {
 		}
 	}
 	
+	//Sets up scene views
 	void setupSceneViews(VBox root) {
+		// Setup Avatar 
+		avatarPicker = new TopMostPane();
+		root.getChildren().add(avatarPicker);
+		
 		//Setup Payout Info Pane (Top View)
 		payoutViewPane = new PayoutViewPane();
 		root.getChildren().add(payoutViewPane);	
@@ -105,7 +123,7 @@ public class Main extends Application {
 	}
 	
 	//Loop over images names, create card items with value and suit
-	public  void fillCardList(int numOfDecks) {
+	public void fillCardList(int numOfDecks) {
 		cardList.clear();
 		for (int n = 1; n <= numOfDecks; n++) {
 			for (int i = 1; i <= 13; i++) {
@@ -525,7 +543,53 @@ public class Main extends Application {
 	public static void main(String[] args) {
 		launch(args);
 	}
-
+	
+	//Container for Avatar Selector
+	class TopMostPane extends HBox {
+		
+		private ImageView avatar; // This image view represents the avatar
+		private Text description; // This directs the user
+		private DropShadow shadow; // This creates an effect for the image
+		private int currentIndex; // This keeps track of the index so that the pictures can rotate
+		
+		public TopMostPane() { // This is our constructor method
+			
+			avatar = new ImageView(new Image(imageURL[currentIndex])); // Sets the image
+			currentIndex = 0; // Start on first index
+			description = new Text("<- Click to change User Avatar"); // Directs user
+			shadow = new DropShadow();
+			
+			description.setFill(Color.YELLOW);
+			
+			shadow.setColor(Color.GREY);
+			shadow.setOffsetX(2);
+			shadow.setOffsetY(2);
+				
+			avatar.setOnMouseClicked(e -> { // This event fires when the user clicks the image
+				changeImage();
+			});
+			
+			avatar.setFitHeight(100);
+			avatar.setFitWidth(100);
+			avatar.setEffect(shadow);
+			
+			HBox.setMargin(avatar, new Insets(25,0,25,50));
+			this.getChildren().addAll(avatar, description);
+			this.setAlignment(Pos.CENTER_LEFT);
+			this.setSpacing(25);
+			
+		}
+		
+		public void changeImage() { // This method changes the image based on the index (iterates +1) then repeats
+			if (currentIndex == 5) {
+				currentIndex = 0;
+				avatar.setImage(new Image(imageURL[currentIndex]));
+			} else {
+				avatar.setImage(new Image(imageURL[++currentIndex]));
+			}
+		}
+	}
+	
 	//Container For Game Controls (Bottom View)
 	class ControlsPane extends VBox {
 		//Deal/Draw Buttons
@@ -781,6 +845,7 @@ public class Main extends Application {
 			}
 		}
 		
+		//Handles the deal Animation
 		public void dealAnimation() {
 			for (int i = 0; i <= 4; i++) {
 				cardViews.get(i).setTranslateX(-SCENE_WIDTH);
@@ -795,6 +860,7 @@ public class Main extends Application {
 			}
 		}
 		
+		//Handles the draw animation
 		public void drawAnimation(ImageView iv, String newCardimgName) {
 			//Slide out discarded card
 			Random rand = new Random(); //Set a variation of speeds for cards
@@ -821,7 +887,8 @@ public class Main extends Application {
 		    
 		}
 		
-		public void selectForDiscard(int index) {
+		//Handles user selecting card index and animation
+		public void selectForDiscard(int index) { 
 			if (gameController.handState == HandState.DRAW) {
 				//Current card
 				Card currentCard = gameController.currentHand.get(index);
@@ -869,11 +936,13 @@ public class Main extends Application {
 		}
 		public Hand() {}
 	}
+	
 	//Pop up pane after each hand with result (win/loss)
 	class ResultViewPane extends VBox {
 		Text handResultText = new Text("You Win!");
 		Text hand = new Text("Royal Flush");
 		Text winningsLabel = new Text("+50");
+		
 		public ResultViewPane() {
 			//Initially Invisible and Out of Way
 			this.setOpacity(0);
@@ -1110,7 +1179,7 @@ class GameController {
 		chipCount += amount;
 	}
 	
-	public void updateState() { //Upate game state
+	public void updateState() { //Update game state
 		switch (handState) {
 		case START:
 			handState = HandState.DRAW;
